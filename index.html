@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>迷宮</title>
+    <meta charset="UTF-8" />
+    <meta name="description" content="" />
+    <meta name="keywords" content="" />
+    <style>
+      body {
+        /*background-color: #4c3636;*/
+        margin: 0;
+        /*overflow: hidden;*/
+      }
+
+      .frame {
+        position: relative;
+        display: inline-block;
+      }
+
+      #canvas {
+        position: relative;
+        display: block;
+        border: 1px solid #ddd;
+      }
+      .bar {
+        position: relative;
+        display: flex;
+        padding: 10px;
+        font-size: 14px;
+        align-items: center;
+      }
+      #draw {
+        position: relative;
+        display: inline-block;
+      }
+      #speed {
+        position: relative;
+        display: inline-block;
+        flex: 1;
+      }
+      #speedText {
+        position: relative;
+        display: inline-block;
+        width: 2em;
+        text-align: center;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="frame">
+      <div class="bar">
+        <button id="draw">重新繪製</button>
+        <span>&nbsp;</span>
+        <label>繪製速度：</label>
+        <input id="speed" type="range" min="0" max="100" step="1" value="1" />
+        <output id="speedText"></output>
+        <span>&nbsp;</span>
+        <label>水平格數：</label>
+        <input id="cols" type="number" min="10" max="57" step="1" value="40" />
+        <span>&nbsp;</span>
+        <label>垂直格數：</label>
+        <input id="rows" type="number" min="10" max="66" step="1" value="40" />
+      </div>
+      <canvas id="canvas" width="800px" height="800px"></canvas>
+    </div>
+  </body>
+
+  <script>
+    var canvas, ctx;
+
+    var cols = 10;
+    var rows = 10;
+    var hexagonR = 16 / 2;
+    var maze, c;
+    var cWidth, cHeight;
+
+    function initMaze() {
+      maze = [];
+      for (var j = 0; j < rows; j++) {
+        for (var i = 0; i < cols; i++) {
+          maze.push(new cell(i, j));
+        }
+      }
+    }
+
+    function resetMaze() {
+      c = Math.floor(Math.random() * maze.length);
+      for (var i = 0; i < maze.length; i++) {
+        maze[i].prev = -1;
+        maze[i].visited = false;
+        maze[i].repatriation = false;
+        maze[i].wall = [true, true, true, true, true, true];
+        maze[i].render();
+      }
+    }
+
+    //console.log(maze[index(9, 9)])
+
+    function index(i, j) {
+      if (i < 0 || i >= cols || j < 0 || j >= rows) {
+        return -1;
+      }
+      return i + j * cols;
+    }
+
+    function cell(i, j) {
+      this.i = i;
+      this.j = j;
+      this.prev = -1;
+      this.wall = [true, true, true, true, true, true];
+      this.visited = false;
+      this.repatriation = false;
+      this.checkNeighbor = function(maze) {
+        var neighbor = [];
+        var neighborIndex = [];
+        if (this.j % 2 == 0) {
+          neighbor.push(maze[index(this.i, this.j - 1)]);
+          neighbor.push(maze[index(this.i + 1, this.j - 1)]);
+          neighbor.push(maze[index(this.i + 1, this.j)]);
+          neighbor.push(maze[index(this.i + 1, this.j + 1)]);
+          neighbor.push(maze[index(this.i, this.j + 1)]);
+          neighbor.push(maze[index(this.i - 1, this.j)]);
+        } else {
+          neighbor.push(maze[index(this.i - 1, this.j - 1)]);
+          neighbor.push(maze[index(this.i, this.j - 1)]);
+          neighbor.push(maze[index(this.i + 1, this.j)]);
+          neighbor.push(maze[index(this.i, this.j + 1)]);
+          neighbor.push(maze[index(this.i - 1, this.j + 1)]);
+          neighbor.push(maze[index(this.i - 1, this.j)]);
+        }
+
+        if (neighbor[0] && !neighbor[0].visited) {
+          neighborIndex.push(0);
+        }
+        if (neighbor[1] && !neighbor[1].visited) {
+          neighborIndex.push(1);
+        }
+        if (neighbor[2] && !neighbor[2].visited) {
+          neighborIndex.push(2);
+        }
+        if (neighbor[3] && !neighbor[3].visited) {
+          neighborIndex.push(3);
+        }
+        if (neighbor[4] && !neighbor[4].visited) {
+          neighborIndex.push(4);
+        }
+        if (neighbor[5] && !neighbor[5].visited) {
+          neighborIndex.push(5);
+        }
+
+        if (neighborIndex.length > 0) {
+          var r = Math.floor(Math.random() * neighborIndex.length);
+          var i = neighborIndex[r];
+          this.wall[i] = false;
+          neighbor[i].wall[(i + 3) % 6] = false;
+          return neighbor[i];
+        } else {
+          return undefined;
+        }
+      };
+      this.renderItem = function(x, y, hexagonR) {
+        var sqrt3 = Math.sqrt(3);
+
+        ctx.beginPath();
+        ctx.moveTo(x - hexagonR * sqrt3 * 0.5, y - hexagonR * 0.5);
+        ctx.lineTo(x, y - hexagonR);
+        ctx.lineTo(x + hexagonR * sqrt3 * 0.5, y - hexagonR * 0.5);
+        ctx.lineTo(x + hexagonR * sqrt3 * 0.5, y + hexagonR * 0.5);
+        ctx.lineTo(x, y + hexagonR);
+        ctx.lineTo(x - hexagonR * sqrt3 * 0.5, y + hexagonR * 0.5);
+        ctx.closePath();
+        ctx.fill();
+      };
+      this.render = function() {
+        var sqrt3 = Math.sqrt(3);
+        var xx = hexagonR * sqrt3 * 0.5 + 0.5 * cWidth - 0.5 * (cols + 0.5) * hexagonR * sqrt3;
+        var yy = hexagonR + 0.5 * cHeight - 0.5 * (rows * hexagonR * 0.5 * 3 + hexagonR * 0.5);
+        var x = xx + (i + (j % 2 ? 0 : 0.5)) * hexagonR * sqrt3 * 0.5 * 2;
+        var y = yy + j * hexagonR * 0.5 * 3;
+        ctx.fillStyle = this.repatriation ? "#ffffff" : this.visited ? "#dfdfdf" : "#bfbfbf";
+        this.renderItem(x, y, hexagonR);
+
+        ctx.beginPath();
+        ctx.strokeStyle = "#000000";
+        ctx.lineWidth = 1;
+        if (this.wall[0]) {
+          ctx.moveTo(x - hexagonR * sqrt3 * 0.5, y - hexagonR * 0.5);
+          ctx.lineTo(x, y - hexagonR);
+        }
+        if (this.wall[1]) {
+          ctx.moveTo(x, y - hexagonR);
+          ctx.lineTo(x + hexagonR * sqrt3 * 0.5, y - hexagonR * 0.5);
+        }
+        if (this.wall[2]) {
+          ctx.moveTo(x + hexagonR * sqrt3 * 0.5, y - hexagonR * 0.5);
+          ctx.lineTo(x + hexagonR * sqrt3 * 0.5, y + hexagonR * 0.5);
+        }
+        if (this.wall[3]) {
+          ctx.moveTo(x + hexagonR * sqrt3 * 0.5, y + hexagonR * 0.5);
+          ctx.lineTo(x, y + hexagonR);
+        }
+        if (this.wall[4]) {
+          ctx.moveTo(x, y + hexagonR);
+          ctx.lineTo(x - hexagonR * sqrt3 * 0.5, y + hexagonR * 0.5);
+        }
+        if (this.wall[5]) {
+          ctx.moveTo(x - hexagonR * sqrt3 * 0.5, y + hexagonR * 0.5);
+          ctx.lineTo(x - hexagonR * sqrt3 * 0.5, y - hexagonR * 0.5);
+        }
+
+        ctx.closePath();
+        ctx.stroke();
+      };
+      this.renderHead = function() {
+        var sqrt3 = Math.sqrt(3);
+        var xx = hexagonR * sqrt3 * 0.5 + 0.5 * cWidth - 0.5 * (cols + 0.5) * hexagonR * sqrt3;
+        var yy = hexagonR + 0.5 * cHeight - 0.5 * (rows * hexagonR * 0.5 * 3 + hexagonR * 0.5);
+        var x = xx + (i + (j % 2 ? 0 : 0.5)) * hexagonR * sqrt3 * 0.5 * 2;
+        var y = yy + j * hexagonR * 0.5 * 3;
+        ctx.fillStyle = "#00ff00";
+        this.renderItem(x, y, hexagonR - 5);
+      };
+    }
+
+    var count = 0;
+    var pp = -1;
+    function render() {
+      ctx.globalCompositeOperation = "source-over";
+      ctx.globalAlpha = 1;
+      //ctx.fillStyle = '#000000';
+      //ctx.fillRect(0, 0, canvas.width, canvas.height);
+      //ctx.globalAlpha = 1;
+      /*count = 0;
+      while (count <= 10) {
+        count++;*/
+      if (c >= 0) {
+        pp = c;
+        maze[c].visited = true;
+        var neighbor = maze[c].checkNeighbor(maze);
+        if (neighbor) {
+          var temp = neighbor.i + neighbor.j * cols;
+          maze[temp].prev = c;
+          c = temp;
+        } else {
+          maze[c].repatriation = true;
+          c = maze[c].prev;
+        }
+        maze[pp].render();
+        //count++;
+        //console.log(count);
+      } else {
+        /*resetMaze();
+        console.log("完成");*/
+      }
+
+      if (c >= 0) {
+        maze[c].renderHead();
+      }
+    }
+    //}
+    var button_draw = document.getElementById("draw");
+    button_draw.addEventListener("click", function() {
+      resetMaze();
+    });
+    var range_speed = document.getElementById("speed");
+    var range_speedText = document.getElementById("speedText");
+    range_speed.addEventListener("input", function(e) {
+      speed = parseFloat(e.currentTarget.value);
+      range_speedText.value = speed;
+    });
+    var number_cols = document.getElementById("cols");
+    number_cols.addEventListener("input", function(e) {
+      if (e.currentTarget.value !== "") {
+        var temp = Math.max(parseFloat(e.currentTarget.min), Math.min(parseFloat(e.currentTarget.max), parseFloat(e.currentTarget.value)));
+        if (cols != temp) {
+          cols = temp;
+          e.currentTarget.value = cols;
+          ctx.clearRect(0, 0, cWidth, cHeight);
+          initMaze();
+          resetMaze();
+        }
+      }
+    });
+    var number_rows = document.getElementById("rows");
+    number_rows.addEventListener("input", function(e) {
+      if (e.currentTarget.value !== "") {
+        var temp = Math.max(parseFloat(e.currentTarget.min), Math.min(parseFloat(e.currentTarget.max), parseFloat(e.currentTarget.value)));
+        if (rows != temp) {
+          rows = temp;
+          e.currentTarget.value = rows;
+          ctx.clearRect(0, 0, cWidth, cHeight);
+          initMaze();
+          resetMaze();
+        }
+      }
+    });
+    cols = parseFloat(number_cols.value);
+    rows = parseFloat(number_rows.value);
+    var speed = parseFloat(range_speed.value);
+    range_speedText.value = speed;
+    function loop() {
+      for (var i = 0; i < speed; i++) {
+        render();
+      }
+      setTimeout(loop, 1000 / 30);
+      //console.log(cols * rows * 2);
+      //requestAnimationFrame(loop);
+    }
+
+    (function() {
+      canvas = document.getElementById("canvas");
+      ctx = canvas.getContext("2d");
+      cWidth = canvas.width;
+      cHeight = canvas.height;
+      initMaze();
+      resetMaze();
+      loop();
+    })();
+  </script>
+</html>
