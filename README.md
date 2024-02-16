@@ -1,3 +1,3 @@
 # 迷宮
 
-[線上觀看](https://virtools.github.io/maze/)
+[線上觀看](https://startail007.github.io/maze/)
